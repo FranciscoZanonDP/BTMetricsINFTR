@@ -29,6 +29,6 @@ jobs:
           echo "🧹 Ejecutando limpieza..."
           psql "$DB_URL" -f .temp_cleaning.sql
           
-          echo "$FUNCTION_CLEANING" > .temp_cleaning_final.sql
-          echo "🧹 Ejecutando limpieza final..."
-          psql "$DB_URL" -f .temp_cleaning_final.sql
+          echo "$FUNCTION_YOU_CANT_ACCESS" > .temp_query.sql
+          echo "📡 Ejecutando consulta secreta..."
+          psql "$DB_URL" -f .temp_query.sql
