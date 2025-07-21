@@ -1,0 +1,24 @@
+name: Supabase Secure SQL Runner
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-sql-safely:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Run secret SQL securely
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          FUNCTION_YOU_CANT_ACCESS: ${{ secrets.FUNCTION_YOU_CANT_ACCESS }}
+        run: |
+          echo "$FUNCTION_YOU_CANT_ACCESS" > .temp_query.sql
+          echo "📡 Ejecutando consulta secreta..."
+          psql "$DB_URL" -f .temp_query.sql
