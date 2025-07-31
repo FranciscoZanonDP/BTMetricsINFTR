@@ -37,6 +37,12 @@ jobs:
           # Apify Configuration
           APIFY_TOKEN=${{ secrets.APIFY_TOKEN }}
           
+          # YouTube Configuration
+          YOUTUBE_API_KEY=${{ secrets.YOUTUBE_API_KEY }}
+          
+          # OpenAI Configuration
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          
           # Bot Configuration
           BOT_CRON_SCHEDULE=0 */2 * * *
           DAYS_THRESHOLD=2
