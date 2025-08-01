@@ -2,8 +2,8 @@ name: Bot Métricas ITracker - Ejecución Automática
 
 on:
   schedule:
-    # Ejecutar cada 2 horas
-    - cron: '0 */2 * * *'
+    # Ejecutar cada 6 horas
+    - cron: '0 */6 * * *'
   workflow_dispatch: # Permite ejecución manual también
 
 jobs:
