@@ -351,7 +351,7 @@ export class InstagramMetricsService {
     }
 
     // Calcular engageRate para platform_data (entre 0-1) - dividido por 100 para decimal pequeño
-    const engageRateForPlatform = views > 0 ? ((likes + comments) / views) / 100 : 0;
+    const engageRateForPlatform = views > 0 ? ((likes + comments) / views) * 100 : 0;
 
     logger.info(`📈 Métricas calculadas:`, {
       likes,
