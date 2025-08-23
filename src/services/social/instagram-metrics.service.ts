@@ -146,7 +146,7 @@ export class InstagramMetricsService {
 
       while (runStatus === 'RUNNING' && attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds
-        
+
         const statusResponse = await axios.get(
           `${APIFY_API_BASE_URL}/acts/${APIFY_ACTOR_ID}/runs/${runId}?token=${APIFY_API_TOKEN}`,
           { timeout: 10000 }
@@ -265,7 +265,7 @@ export class InstagramMetricsService {
 
     } catch (error: any) {
       logger.error('❌ Instagram API failed:', error.response?.data || error.message);
-      
+
       // Log more details about the error
       if (error.response) {
         logger.error('📡 Error response:', {
@@ -274,13 +274,13 @@ export class InstagramMetricsService {
           data: error.response.data
         });
       }
-      
+
       if (error.request) {
         logger.error('🌐 Error request:', error.request);
       }
-      
-      return { 
-        success: false, 
+
+      return {
+        success: false,
         error: error.response?.data?.error?.message || error.message || 'Error desconocido'
       };
     }
@@ -298,7 +298,7 @@ export class InstagramMetricsService {
     try {
       const commentsService = InstagramCommentsService.getInstance();
       const result = await commentsService.getPostComments(postUrl, limit);
-      
+
       if (result.success && result.data) {
         // Convertir al formato del sistema
         const systemFormatComments = commentsService.convertToSystemFormat(result.data);
@@ -308,7 +308,7 @@ export class InstagramMetricsService {
           totalComments: result.totalComments || 0
         };
       }
-      
+
       return result;
     } catch (error: any) {
       logger.error('❌ Error obteniendo comentarios de Instagram:', error);
@@ -328,10 +328,10 @@ export class InstagramMetricsService {
     instagramMetrics: InstagramPostMetrics
   ): any {
     logger.info(`🔄 Convirtiendo métricas de Instagram a formato del sistema para post: ${postId}`);
-    
+
     const postData = instagramMetrics.data.basicInstagramPost;
     const rawData = postData.rawData;
-    
+
     logger.info(`📊 Datos raw recibidos:`, {
       likesCount: rawData.likesCount,
       commentsCount: rawData.commentsCount,
@@ -344,14 +344,14 @@ export class InstagramMetricsService {
     const likes = rawData.likesCount || 0;
     const comments = rawData.commentsCount || 0;
     const views = rawData.videoViewCount || rawData.videoPlayCount || likes; // Fallback to likes if no views
-    
+
     let engagementRate = 0;
     if (views > 0) {
-      engagementRate = ((likes + comments) / views) * 100;
+      engagementRate = (likes + comments) / (likes * 10);
     }
 
     // Calcular engageRate para platform_data (entre 0-1) - dividido por 100 para decimal pequeño
-    const engageRateForPlatform = views > 0 ? ((likes + comments) / views) * 100 : 0;
+    const engageRateForPlatform = likes > 0 ? (likes + comments) / (likes * 10) : 0;
 
     logger.info(`📈 Métricas calculadas:`, {
       likes,
