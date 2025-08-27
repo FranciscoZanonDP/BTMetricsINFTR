@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Primary database configuration
 const supabaseUrl = process.env['SUPABASE_URL'];
 const supabaseServiceKey = process.env['SUPABASE_SERVICE_ROLE_KEY'];
 
@@ -16,5 +17,18 @@ export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     persistSession: false
   }
 });
+
+// Second database configuration (optional)
+const supabaseUrl2 = process.env['SUPABASE_URL_2'];
+const supabaseServiceKey2 = process.env['SUPABASE_SERVICE_ROLE_KEY_2'];
+
+export const supabase2 = supabaseUrl2 && supabaseServiceKey2 
+  ? createClient(supabaseUrl2, supabaseServiceKey2, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
+  : null;
 
 export default supabase; 
