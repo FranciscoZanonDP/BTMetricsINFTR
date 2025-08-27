@@ -1,4 +1,4 @@
-import { supabase } from '../config/database';
+import { supabase, supabase2 } from '../config/database';
 import logger from '../config/logger';
 import { PostWithLatestMetrics } from '../types/database';
 
@@ -11,8 +11,43 @@ export class DatabaseService {
     try {
       logger.info(`Buscando posts con métricas de más de ${daysThreshold} días`);
 
+      const allPosts: PostWithLatestMetrics[] = [];
+
+      // Procesar primera base de datos
+      const postsFromDB1 = await this.getPostsNeedingUpdateFromDB(supabase, daysThreshold, 'DB1');
+      allPosts.push(...postsFromDB1);
+
+      // Procesar segunda base de datos si está disponible
+      if (supabase2) {
+        logger.info('Procesando segunda base de datos...');
+        const postsFromDB2 = await this.getPostsNeedingUpdateFromDB(supabase2, daysThreshold, 'DB2');
+        allPosts.push(...postsFromDB2);
+      } else {
+        logger.info('Segunda base de datos no configurada, saltando...');
+      }
+
+      logger.info(`Total de posts que necesitan actualización: ${allPosts.length}`);
+      return allPosts;
+
+    } catch (error) {
+      logger.error('Error en getPostsNeedingUpdate:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene posts que necesitan actualización de una base de datos específica
+   */
+  private static async getPostsNeedingUpdateFromDB(
+    dbClient: any, 
+    daysThreshold: number, 
+    dbName: string
+  ): Promise<PostWithLatestMetrics[]> {
+    try {
+      logger.info(`Buscando posts en ${dbName} con métricas de más de ${daysThreshold} días`);
+
       // Consulta usando Supabase directamente sin función RPC
-      const { data, error } = await supabase
+      const { data, error } = await dbClient
         .from('post_metrics')
         .select(`
           post_id,
@@ -23,12 +58,12 @@ export class DatabaseService {
         .order('created_at', { ascending: false });
 
       if (error) {
-        logger.error('Error consultando post_metrics:', error);
-        throw error;
+        logger.error(`Error consultando post_metrics en ${dbName}:`, error);
+        return [];
       }
 
       // Obtener influencer_posts para hacer el join
-      const { data: influencerPosts, error: ipError } = await supabase
+      const { data: influencerPosts, error: ipError } = await dbClient
         .from('influencer_posts')
         .select(`
           id,
@@ -40,13 +75,13 @@ export class DatabaseService {
         .is('deleted_at', null);
 
       if (ipError) {
-        logger.error('Error consultando influencer_posts:', ipError);
-        throw ipError;
+        logger.error(`Error consultando influencer_posts en ${dbName}:`, ipError);
+        return [];
       }
 
       // Crear mapa de posts más recientes por post_id
       const latestMetrics = new Map<string, any>();
-      data?.forEach(metric => {
+      data?.forEach((metric: any) => {
         const key = `${metric.post_id}-${metric.platform}`;
         if (!latestMetrics.has(key) || new Date(metric.created_at) > new Date(latestMetrics.get(key).created_at)) {
           latestMetrics.set(key, metric);
@@ -57,44 +92,35 @@ export class DatabaseService {
       const today = new Date();
       const postsNeedingUpdate: PostWithLatestMetrics[] = [];
 
-      latestMetrics.forEach((metric) => {
+      latestMetrics.forEach((metric: any) => {
         const metricDate = new Date(metric.created_at);
-        
-        // Comparar solo fecha (día y mes) sin considerar hora
-        const todayDateOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-        const metricDateOnly = new Date(metricDate.getFullYear(), metricDate.getMonth(), metricDate.getDate());
-        
-        // Calcular diferencia en días
-        const timeDiff = todayDateOnly.getTime() - metricDateOnly.getTime();
-        const daysSinceUpdate = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
-        
-        logger.debug(`📅 Comparando fechas: ${metricDateOnly.toISOString().split('T')[0]} vs ${todayDateOnly.toISOString().split('T')[0]} = ${daysSinceUpdate} días`);
-        
-        if (daysSinceUpdate >= daysThreshold) {
+        const daysDiff = Math.floor((today.getTime() - metricDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (daysDiff >= daysThreshold) {
           // Buscar el influencer_post correspondiente
-          const influencerPost = influencerPosts?.find(ip => ip.id === metric.post_id);
-          
+          const influencerPost = influencerPosts?.find((ip: any) => ip.id === metric.post_id);
           if (influencerPost) {
             postsNeedingUpdate.push({
               post_id: metric.post_id,
               platform: metric.platform,
               post_url: influencerPost.post_url || '',
               latest_metrics_created_at: metric.created_at,
-              days_since_last_update: daysSinceUpdate,
+              days_since_last_update: daysDiff,
               influencer_post_id: influencerPost.id,
               influencer_id: influencerPost.influencer_id,
-              campaign_id: influencerPost.campaign_id
+              campaign_id: influencerPost.campaign_id,
+              db_name: dbName // Agregar identificador de base de datos
             });
           }
         }
       });
 
-      logger.info(`Encontrados ${postsNeedingUpdate.length} posts que necesitan actualización`);
+      logger.info(`Encontrados ${postsNeedingUpdate.length} posts que necesitan actualización en ${dbName}`);
       return postsNeedingUpdate;
 
     } catch (error) {
-      logger.error('Error en getPostsNeedingUpdate:', error);
-      throw error;
+      logger.error(`Error procesando ${dbName}:`, error);
+      return [];
     }
   }
 
@@ -105,8 +131,40 @@ export class DatabaseService {
     try {
       logger.info('Buscando posts sin métricas exitosas');
 
+      const allPosts: PostWithLatestMetrics[] = [];
+
+      // Procesar primera base de datos
+      const postsFromDB1 = await this.getPostsWithoutMetricsFromDB(supabase, 'DB1');
+      allPosts.push(...postsFromDB1);
+
+      // Procesar segunda base de datos si está disponible
+      if (supabase2) {
+        logger.info('Procesando segunda base de datos para posts sin métricas...');
+        const postsFromDB2 = await this.getPostsWithoutMetricsFromDB(supabase2, 'DB2');
+        allPosts.push(...postsFromDB2);
+      }
+
+      logger.info(`Total de posts sin métricas: ${allPosts.length}`);
+      return allPosts;
+
+    } catch (error) {
+      logger.error('Error en getPostsWithoutMetrics:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene posts sin métricas de una base de datos específica
+   */
+  private static async getPostsWithoutMetricsFromDB(
+    dbClient: any, 
+    dbName: string
+  ): Promise<PostWithLatestMetrics[]> {
+    try {
+      logger.info(`Buscando posts sin métricas exitosas en ${dbName}`);
+
       // Obtener todos los influencer_posts
-      const { data: influencerPosts, error: ipError } = await supabase
+      const { data: influencerPosts, error: ipError } = await dbClient
         .from('influencer_posts')
         .select(`
           id,
@@ -118,28 +176,28 @@ export class DatabaseService {
         .is('deleted_at', null);
 
       if (ipError) {
-        logger.error('Error consultando influencer_posts:', ipError);
-        throw ipError;
+        logger.error(`Error consultando influencer_posts en ${dbName}:`, ipError);
+        return [];
       }
 
       // Obtener todos los post_ids que tienen métricas exitosas
-      const { data: successfulMetrics, error: metricsError } = await supabase
+      const { data: successfulMetrics, error: metricsError } = await dbClient
         .from('post_metrics')
         .select('post_id')
         .eq('api_success', true);
 
       if (metricsError) {
-        logger.error('Error consultando métricas exitosas:', metricsError);
-        throw metricsError;
+        logger.error(`Error consultando métricas exitosas en ${dbName}:`, metricsError);
+        return [];
       }
 
       // Crear set de post_ids con métricas exitosas
-      const successfulPostIds = new Set(successfulMetrics?.map(m => m.post_id) || []);
+      const successfulPostIds = new Set(successfulMetrics?.map((m: any) => m.post_id) || []);
 
       // Filtrar posts sin métricas exitosas
       const postsWithoutMetrics = influencerPosts
-        ?.filter(post => !successfulPostIds.has(post.id))
-        .map(post => ({
+        ?.filter((post: any) => !successfulPostIds.has(post.id))
+        .map((post: any) => ({
           post_id: post.id,
           platform: post.platform,
           post_url: post.post_url || '',
@@ -147,15 +205,16 @@ export class DatabaseService {
           days_since_last_update: 999, // Muchos días para que se procese
           influencer_post_id: post.id,
           influencer_id: post.influencer_id,
-          campaign_id: post.campaign_id
+          campaign_id: post.campaign_id,
+          db_name: dbName // Agregar identificador de base de datos
         })) || [];
 
-      logger.info(`Encontrados ${postsWithoutMetrics.length} posts sin métricas`);
+      logger.info(`Encontrados ${postsWithoutMetrics.length} posts sin métricas en ${dbName}`);
       return postsWithoutMetrics;
 
     } catch (error) {
-      logger.error('Error en getPostsWithoutMetrics:', error);
-      throw error;
+      logger.error(`Error procesando ${dbName}:`, error);
+      return [];
     }
   }
 

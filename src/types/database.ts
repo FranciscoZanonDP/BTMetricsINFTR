@@ -43,7 +43,8 @@ export interface PostWithLatestMetrics {
   days_since_last_update: number;
   influencer_post_id: string;
   influencer_id: string;
-  campaign_id?: string;
+  campaign_id: string;
+  db_name?: string; // Identificador de la base de datos
 }
 
 export interface MetricsUpdateResult {
