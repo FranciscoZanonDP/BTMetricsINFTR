@@ -221,23 +221,33 @@ export class DatabaseService {
   /**
    * Inserta métricas de post en la base de datos
    */
-  static async insertPostMetrics(metrics: any): Promise<void> {
+  static async insertPostMetrics(metrics: any, dbName?: string): Promise<void> {
     try {
       // Corregir engagement_rate (dividir por 100 para que sea entre 0-1)
       if (metrics.engagement_rate && metrics.engagement_rate > 1) {
         metrics.engagement_rate = metrics.engagement_rate / 100;
       }
 
-      const { error } = await supabase
+      // Determinar qué base de datos usar
+      const dbClient = dbName === 'DB2' ? supabase2 : supabase;
+      const targetDb = dbName || 'DB1';
+
+      if (!dbClient) {
+        throw new Error(`Base de datos ${targetDb} no está configurada`);
+      }
+
+      logger.info(`💾 Insertando métricas en ${targetDb} para post ${metrics.post_id}`);
+
+      const { error } = await dbClient
         .from('post_metrics')
         .insert([metrics]);
 
       if (error) {
-        logger.error('Error insertando métricas:', error);
+        logger.error(`Error insertando métricas en ${targetDb}:`, error);
         throw error;
       }
 
-      logger.info(`Métricas insertadas exitosamente para post ${metrics.post_id}`);
+      logger.info(`✅ Métricas insertadas exitosamente en ${targetDb} para post ${metrics.post_id}`);
     } catch (error) {
       logger.error('Error en insertPostMetrics:', error);
       throw error;
@@ -247,8 +257,18 @@ export class DatabaseService {
   /**
    * Actualiza métricas del influencer post
    */
-  static async updateInfluencerPostMetrics(postId: string, metrics: any): Promise<void> {
+  static async updateInfluencerPostMetrics(postId: string, metrics: any, dbName?: string): Promise<void> {
     try {
+      // Determinar qué base de datos usar
+      const dbClient = dbName === 'DB2' ? supabase2 : supabase;
+      const targetDb = dbName || 'DB1';
+
+      if (!dbClient) {
+        throw new Error(`Base de datos ${targetDb} no está configurada`);
+      }
+
+      logger.info(`🔄 Actualizando métricas del influencer post en ${targetDb} para post ${postId}`);
+
       const updateData = {
         likes_count: metrics.likes_count || 0,
         comments_count: metrics.comments_count || 0,
@@ -257,17 +277,17 @@ export class DatabaseService {
         updated_at: new Date().toISOString()
       };
 
-      const { error } = await supabase
+      const { error } = await dbClient
         .from('influencer_posts')
         .update(updateData)
         .eq('id', postId);
 
       if (error) {
-        logger.error('Error actualizando métricas del influencer post:', error);
+        logger.error(`Error actualizando métricas del influencer post en ${targetDb}:`, error);
         throw error;
       }
 
-      logger.info(`Métricas del influencer post actualizadas para ${postId}`);
+      logger.info(`✅ Métricas del influencer post actualizadas en ${targetDb} para ${postId}`);
     } catch (error) {
       logger.error('Error en updateInfluencerPostMetrics:', error);
       throw error;
@@ -277,11 +297,19 @@ export class DatabaseService {
   /**
    * Inserta temas en post_topics
    */
-  static async insertPostTopics(postId: string, topics: any[]): Promise<void> {
+  static async insertPostTopics(postId: string, topics: any[], dbName?: string): Promise<void> {
     try {
       if (!topics || topics.length === 0) {
         logger.info(`No hay temas para insertar para el post ${postId}`);
         return;
+      }
+
+      // Determinar qué base de datos usar
+      const dbClient = dbName === 'DB2' ? supabase2 : supabase;
+      const targetDb = dbName || 'DB1';
+
+      if (!dbClient) {
+        throw new Error(`Base de datos ${targetDb} no está configurada`);
       }
 
       const topicRecords = topics.map(topic => ({
@@ -297,19 +325,19 @@ export class DatabaseService {
         language_detected: topic.language_detected || 'es'
       }));
 
-      logger.info(`Insertando ${topics.length} temas en post_topics para post ${postId}`);
+      logger.info(`📝 Insertando ${topics.length} temas en post_topics en ${targetDb} para post ${postId}`);
       logger.info(`Temas a insertar:`, JSON.stringify(topicRecords, null, 2));
 
-      const { error } = await supabase
+      const { error } = await dbClient
         .from('post_topics')
         .insert(topicRecords);
 
       if (error) {
-        logger.error('Error insertando temas:', error);
+        logger.error(`Error insertando temas en ${targetDb}:`, error);
         throw error;
       }
 
-      logger.info(`✅ ${topics.length} temas insertados exitosamente en post_topics para post ${postId}`);
+      logger.info(`✅ ${topics.length} temas insertados exitosamente en post_topics en ${targetDb} para post ${postId}`);
     } catch (error) {
       logger.error('Error en insertPostTopics:', error);
       throw error;
@@ -319,19 +347,29 @@ export class DatabaseService {
   /**
    * Elimina temas existentes de un post antes de insertar nuevos
    */
-  static async deleteExistingTopics(postId: string): Promise<void> {
+  static async deleteExistingTopics(postId: string, dbName?: string): Promise<void> {
     try {
-      const { error } = await supabase
+      // Determinar qué base de datos usar
+      const dbClient = dbName === 'DB2' ? supabase2 : supabase;
+      const targetDb = dbName || 'DB1';
+
+      if (!dbClient) {
+        throw new Error(`Base de datos ${targetDb} no está configurada`);
+      }
+
+      logger.info(`🗑️ Eliminando temas existentes en ${targetDb} para post ${postId}`);
+
+      const { error } = await dbClient
         .from('post_topics')
         .delete()
         .eq('post_id', postId);
 
       if (error) {
-        logger.error('Error eliminando temas existentes:', error);
+        logger.error(`Error eliminando temas existentes en ${targetDb}:`, error);
         throw error;
       }
 
-      logger.info(`Temas existentes eliminados para post ${postId}`);
+      logger.info(`✅ Temas existentes eliminados en ${targetDb} para post ${postId}`);
     } catch (error) {
       logger.error('Error en deleteExistingTopics:', error);
       throw error;

@@ -22,7 +22,7 @@ export class PostMetricsService {
   /**
    * Extract and save metrics for a post
    */
-  async extractAndSaveMetrics(postId: string, postUrl: string, platform: string): Promise<PostMetricsResult> {
+  async extractAndSaveMetrics(postId: string, postUrl: string, platform: string, dbName?: string): Promise<PostMetricsResult> {
     const startTime = Date.now();
 
     try {
@@ -121,7 +121,7 @@ export class PostMetricsService {
 
       // Analizar comentarios y temas si hay datos disponibles
       try {
-        await this.analyzeCommentsAndTopics(postId, platform, metricsData);
+        await this.analyzeCommentsAndTopics(postId, platform, metricsData, dbName);
       } catch (analysisError) {
         logger.warn(`Error en análisis de comentarios para post ${postId}:`, analysisError);
         // Continuar sin análisis de comentarios, no fallar el proceso completo
@@ -149,7 +149,7 @@ export class PostMetricsService {
   /**
    * Analiza comentarios y temas para un post
    */
-  private async analyzeCommentsAndTopics(postId: string, platform: string, metricsData: any): Promise<void> {
+  private async analyzeCommentsAndTopics(postId: string, platform: string, metricsData: any, dbName?: string): Promise<void> {
     try {
       logger.info(`Iniciando análisis de comentarios para post ${postId}`);
 
@@ -216,10 +216,10 @@ export class PostMetricsService {
       // Eliminar temas existentes e insertar nuevos
       if (analysisResult.topics.length > 0) {
         logger.info(`Eliminando temas existentes para post ${postId}`);
-        await DatabaseService.deleteExistingTopics(postId);
+        await DatabaseService.deleteExistingTopics(postId, dbName);
         
         logger.info(`Insertando ${analysisResult.topics.length} nuevos temas para post ${postId}`);
-        await DatabaseService.insertPostTopics(postId, analysisResult.topics);
+        await DatabaseService.insertPostTopics(postId, analysisResult.topics, dbName);
       } else {
         logger.warn(`No se generaron temas para el post ${postId}`);
       }

@@ -151,17 +151,19 @@ export class MetricsBot {
    */
   private async processSinglePost(post: any): Promise<any> {
     try {
-      logger.info(`Actualizando métricas para post ${post.post_id} (${post.platform})`);
+      const dbName = post.db_name || 'DB1';
+      logger.info(`🔄 Actualizando métricas para post ${post.post_id} (${post.platform}) desde ${dbName}`);
 
       // Extraer métricas usando el servicio local
       const metricsResult = await this.postMetricsService.extractAndSaveMetrics(
         post.post_id,
         post.post_url,
-        post.platform
+        post.platform,
+        dbName
       );
 
       if (!metricsResult.success) {
-        logger.error(`Error actualizando métricas para post ${post.post_id}:`, metricsResult.error);
+        logger.error(`❌ Error actualizando métricas para post ${post.post_id} desde ${dbName}:`, metricsResult.error);
         return {
           post_id: post.post_id,
           platform: post.platform,
@@ -170,13 +172,13 @@ export class MetricsBot {
         };
       }
 
-      // Guardar métricas en la base de datos
-      await DatabaseService.insertPostMetrics(metricsResult.metrics);
+      // Guardar métricas en la base de datos correcta
+      await DatabaseService.insertPostMetrics(metricsResult.metrics, dbName);
 
-      // Actualizar métricas del influencer post
-      await this.postMetricsService.updateInfluencerPostMetrics(post.post_id, metricsResult.metrics);
+      // Actualizar métricas del influencer post en la base de datos correcta
+      await DatabaseService.updateInfluencerPostMetrics(post.post_id, metricsResult.metrics, dbName);
 
-      logger.info(`✅ Métricas actualizadas exitosamente para post ${post.post_id}`);
+      logger.info(`✅ Métricas actualizadas exitosamente para post ${post.post_id} desde ${dbName}`);
 
       return {
         post_id: post.post_id,
@@ -186,7 +188,7 @@ export class MetricsBot {
       };
 
     } catch (error: any) {
-      logger.error(`Error procesando post ${post.post_id}:`, error.message);
+      logger.error(`❌ Error procesando post ${post.post_id} desde ${post.db_name || 'DB1'}:`, error.message);
       logger.error(`Error completo:`, JSON.stringify(error, null, 2));
       return {
         post_id: post.post_id,
