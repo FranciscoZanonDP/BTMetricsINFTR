@@ -269,6 +269,7 @@ export class DatabaseService {
 
       logger.info(`🔄 Actualizando métricas del influencer post en ${targetDb} para post ${postId}`);
 
+      // Intentar actualización completa primero
       const updateData = {
         likes_count: metrics.likes_count || 0,
         comments_count: metrics.comments_count || 0,
@@ -277,10 +278,29 @@ export class DatabaseService {
         updated_at: new Date().toISOString()
       };
 
-      const { error } = await dbClient
+      let { error } = await dbClient
         .from('influencer_posts')
         .update(updateData)
         .eq('id', postId);
+
+      // Si hay error de esquema, intentar sin engagement_rate
+      if (error && error.code === 'PGRST204' && error.message?.includes('engagement_rate')) {
+        logger.warn(`⚠️ Columna engagement_rate no disponible en ${targetDb}, actualizando sin ella...`);
+        
+        const updateDataWithoutEngagement = {
+          likes_count: metrics.likes_count || 0,
+          comments_count: metrics.comments_count || 0,
+          views_count: metrics.views_count || 0,
+          updated_at: new Date().toISOString()
+        };
+
+        const retryResult = await dbClient
+          .from('influencer_posts')
+          .update(updateDataWithoutEngagement)
+          .eq('id', postId);
+        
+        error = retryResult.error;
+      }
 
       if (error) {
         logger.error(`Error actualizando métricas del influencer post en ${targetDb}:`, error);
