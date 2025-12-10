@@ -7,7 +7,7 @@ export class MetricsBot {
   private daysThreshold: number;
   private postMetricsService: PostMetricsService;
 
-  constructor(daysThreshold: number = 2) {
+  constructor(daysThreshold: number = 1) {
     this.daysThreshold = daysThreshold;
     this.postMetricsService = new PostMetricsService();
   }

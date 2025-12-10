@@ -9,7 +9,7 @@ dotenv.config();
 
 // Configuración
 const CRON_SCHEDULE = process.env['BOT_CRON_SCHEDULE'] || '0 */2 * * *'; // Cada 2 horas por defecto
-const DAYS_THRESHOLD = parseInt(process.env['DAYS_THRESHOLD'] || '2');
+const DAYS_THRESHOLD = parseInt(process.env['DAYS_THRESHOLD'] || '1');
 
 // Crear instancia del bot
 const bot = new MetricsBot(DAYS_THRESHOLD);
