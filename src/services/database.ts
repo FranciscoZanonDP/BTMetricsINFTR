@@ -20,14 +20,14 @@ export class DatabaseService {
 
       if (error) {
         logger.warn(`No se pudo obtener campañas activas en ${dbName} (¿existe tabla campaigns?):`, error.message);
-        return new Set();
+        return new Set<string>();
       }
-      const ids = new Set((data || []).map((c: any) => c.id));
+      const ids = new Set<string>((data || []).map((c: { id: string }) => c.id));
       logger.info(`Campañas activas en ${dbName}: ${ids.size} (status=${ACTIVE_CAMPAIGN_STATUS})`);
       return ids;
     } catch (err) {
       logger.warn(`Error obteniendo campañas activas en ${dbName}:`, err);
-      return new Set();
+      return new Set<string>();
     }
   }
 
