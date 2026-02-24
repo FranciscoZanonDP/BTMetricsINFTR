@@ -50,9 +50,10 @@ jobs:
           # OpenAI Configuration
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           
-          # Bot Configuration
+          # Bot Configuration (solo posts en campañas activas - proyecto catch influencers)
           BOT_CRON_SCHEDULE=0 */2 * * *
-          DAYS_THRESHOLD=2
+          DAYS_THRESHOLD=1
+          ACTIVE_CAMPAIGN_STATUS=${{ secrets.ACTIVE_CAMPAIGN_STATUS || 'active' }}
           
           # Notification Configuration (opcional)
           DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_URL }}

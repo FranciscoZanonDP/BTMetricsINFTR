@@ -2,10 +2,38 @@ import { supabase, supabase2 } from '../config/database';
 import logger from '../config/logger';
 import { PostWithLatestMetrics } from '../types/database';
 
+// Status considerado "campaña activa" (configurable por env para proyecto catch influencers)
+const ACTIVE_CAMPAIGN_STATUS = process.env['ACTIVE_CAMPAIGN_STATUS'] || 'active';
+
 export class DatabaseService {
   /**
+   * Obtiene los IDs de campañas activas (solo posts de estas campañas se actualizan)
+   */
+  private static async getActiveCampaignIds(dbClient: any, dbName: string): Promise<Set<string>> {
+    try {
+      const { data, error } = await dbClient
+        .from('campaigns')
+        .select('id')
+        .eq('status', ACTIVE_CAMPAIGN_STATUS)
+        .is('archived_at', null)
+        .is('deleted_at', null);
+
+      if (error) {
+        logger.warn(`No se pudo obtener campañas activas en ${dbName} (¿existe tabla campaigns?):`, error.message);
+        return new Set();
+      }
+      const ids = new Set((data || []).map((c: any) => c.id));
+      logger.info(`Campañas activas en ${dbName}: ${ids.size} (status=${ACTIVE_CAMPAIGN_STATUS})`);
+      return ids;
+    } catch (err) {
+      logger.warn(`Error obteniendo campañas activas en ${dbName}:`, err);
+      return new Set();
+    }
+  }
+
+  /**
    * Obtiene posts que necesitan actualización de métricas
-   * Busca posts cuyo último registro de métricas tenga más de 7 días
+   * Solo incluye posts pertenecientes a campañas activas
    */
   static async getPostsNeedingUpdate(daysThreshold: number = 7): Promise<PostWithLatestMetrics[]> {
     try {
@@ -44,7 +72,13 @@ export class DatabaseService {
     dbName: string
   ): Promise<PostWithLatestMetrics[]> {
     try {
-      logger.info(`Buscando posts en ${dbName} con métricas de más de ${daysThreshold} días`);
+      logger.info(`Buscando posts en ${dbName} con métricas de más de ${daysThreshold} días (solo campañas activas)`);
+
+      const activeCampaignIds = await this.getActiveCampaignIds(dbClient, dbName);
+      if (activeCampaignIds.size === 0) {
+        logger.info(`No hay campañas activas en ${dbName}, no se actualizarán posts por antigüedad`);
+        return [];
+      }
 
       // Consulta usando Supabase directamente sin función RPC
       const { data, error } = await dbClient
@@ -62,8 +96,8 @@ export class DatabaseService {
         return [];
       }
 
-      // Obtener influencer_posts para hacer el join
-      const { data: influencerPosts, error: ipError } = await dbClient
+      // Obtener influencer_posts (solo los que pertenecen a campañas activas)
+      const { data: influencerPostsRaw, error: ipError } = await dbClient
         .from('influencer_posts')
         .select(`
           id,
@@ -78,6 +112,10 @@ export class DatabaseService {
         logger.error(`Error consultando influencer_posts en ${dbName}:`, ipError);
         return [];
       }
+
+      const influencerPosts = (influencerPostsRaw || []).filter(
+        (ip: any) => ip.campaign_id && activeCampaignIds.has(ip.campaign_id)
+      );
 
       // Crear mapa de posts más recientes por post_id
       const latestMetrics = new Map<string, any>();
@@ -161,10 +199,16 @@ export class DatabaseService {
     dbName: string
   ): Promise<PostWithLatestMetrics[]> {
     try {
-      logger.info(`Buscando posts sin métricas exitosas en ${dbName}`);
+      logger.info(`Buscando posts sin métricas exitosas en ${dbName} (solo campañas activas)`);
 
-      // Obtener todos los influencer_posts
-      const { data: influencerPosts, error: ipError } = await dbClient
+      const activeCampaignIds = await this.getActiveCampaignIds(dbClient, dbName);
+      if (activeCampaignIds.size === 0) {
+        logger.info(`No hay campañas activas en ${dbName}, no se actualizarán posts sin métricas`);
+        return [];
+      }
+
+      // Obtener influencer_posts (solo los que pertenecen a campañas activas)
+      const { data: influencerPostsRaw, error: ipError } = await dbClient
         .from('influencer_posts')
         .select(`
           id,
@@ -179,6 +223,10 @@ export class DatabaseService {
         logger.error(`Error consultando influencer_posts en ${dbName}:`, ipError);
         return [];
       }
+
+      const influencerPosts = (influencerPostsRaw || []).filter(
+        (ip: any) => ip.campaign_id && activeCampaignIds.has(ip.campaign_id)
+      );
 
       // Obtener todos los post_ids que tienen métricas exitosas
       const { data: successfulMetrics, error: metricsError } = await dbClient
