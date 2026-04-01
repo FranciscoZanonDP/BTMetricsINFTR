@@ -8,6 +8,7 @@ on:
 
 jobs:
   run-bot:
+    if: ${{ false }} # This makes sure the workflow is skipped
     runs-on: ubuntu-latest
     
     steps:
